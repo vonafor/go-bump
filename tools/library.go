@@ -27,6 +27,10 @@ func NewLibrary(libsDir, name string) *Library {
 func (l *Library) Prepare() error {
 	if _, err := os.Stat(l.dir); err != nil {
 		if os.IsNotExist(err) {
+			err := os.MkdirAll(l.dir, 0700)
+			if err != nil {
+				return err
+			}
 			return l.cloneRepository()
 		} else {
 			return err
@@ -122,9 +126,11 @@ func (l *Library) changesMessage(dependency, version string) string {
 	return fmt.Sprintf("update %s to %s", dependency, version)
 }
 
-func (l *Library) execCommand(name string, args ...string) error {
+func (l *Library) execCommand(libraryDir bool, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
-	cmd.Dir = l.dir
+	if libraryDir {
+		cmd.Dir = l.dir
+	}
 	out, err := cmd.CombinedOutput()
 	if len(out) > 0 {
 		fmt.Println(string(out))
@@ -134,30 +140,30 @@ func (l *Library) execCommand(name string, args ...string) error {
 
 func (l *Library) cloneRepository() error {
 	fmt.Println("cloning:", l.name)
-	return l.execCommand("git", "clone", l.url, l.dir)
+	return l.execCommand(false, "git", "clone", l.url, l.dir)
 }
 
 func (l *Library) fetchRepository() error {
 	fmt.Println("fetching:", l.name)
-	return l.execCommand("git", "fetch")
+	return l.execCommand(true, "git", "fetch")
 }
 
 func (l *Library) createBranch(branch string) error {
-	return l.execCommand("git", "checkout", "-b", branch, "origin/master")
+	return l.execCommand(true, "git", "checkout", "-b", branch, "origin/master")
 }
 
 func (l *Library) pushBranch(branch string) error {
-	return l.execCommand("git", "push", "-u", "origin", branch)
+	return l.execCommand(true, "git", "push", "-u", "origin", branch)
 }
 
 func (l *Library) commitChanges(message string) error {
-	err := l.execCommand("git", "add", "go.mod", "go.sum")
+	err := l.execCommand(true, "git", "add", "go.mod", "go.sum")
 	if err != nil {
 		return err
 	}
-	return l.execCommand("git", "commit", "-m", message)
+	return l.execCommand(true, "git", "commit", "-m", message)
 }
 
 func (l *Library) updateVersion(dependency, version string) error {
-	return l.execCommand("go", "get", "-d", fmt.Sprintf("%s@%s", dependency, version))
+	return l.execCommand(true, "go", "get", "-d", fmt.Sprintf("%s@%s", dependency, version))
 }
